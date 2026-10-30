@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home Weekly Budget Tracker</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-light">
+    <div class="container py-5">
+        <header class="mb-4 text-center">
+            <h1 class="fw-bold text-primary">🏡 Home Weekly Budget Tracker</h1>
+            <p class="text-muted">Create weeks, set target budgets, log expenses, and analyze reports dynamically.</p>
+        </header>
+
+        <!-- Top Summary Cards -->
+        <div class="row text-center mb-4">
+            <div class="col-md-4 mb-3">
+                <div class="card shadow-sm border-0 p-3">
+                    <h6 class="text-muted">Total Budget Across Weeks</h6>
+                    <h3 class="text-success">₹{{ "%.2f"|format(total_budget) }}</h3>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card shadow-sm border-0 p-3">
+                    <h6 class="text-muted">Total Actual Spent</h6>
+                    <h3 class="text-danger">₹{{ "%.2f"|format(total_spent) }}</h3>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card shadow-sm border-0 p-3">
+                    <h6 class="text-muted">Overall Balance</h6>
+                    <h3 class="{% if total_budget - total_spent >= 0 %}text-success{% else %}text-danger{% endif %}">
+                        ₹{{ "%.2f"|format(total_budget - total_spent) }}
+                    </h3>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart / Dashboard Report Section -->
+        <div class="card shadow-sm border-0 mb-5 p-4">
+            <h4 class="mb-3">📊 Visual Report: Budget vs. Actual Expenses</h4>
+            <div style="position: relative; height:320px; width:100%">
+                <canvas id="budgetChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Create Week Form -->
+        <div class="card shadow-sm border-0 mb-4 p-4">
+            <h4 class="mb-3">➕ Create a New Week</h4>
+            <form action="/add_week" method="POST" class="row g-3">
+                <div class="col-md-5">
+                    <input type="text" class="form-control" name="week_name" placeholder="Week Name (e.g., Week 1 - Oct)" required>
+                </div>
+                <div class="col-md-5">
+                    <input type="number" step="0.01" class="form-control" name="budget" placeholder="Target Weekly Budget (₹)" required>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">Add Week</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- List of Weeks and Individual Expenses -->
+        <div class="row">
+            {% for week in weeks %}
+            <div class="col-md-12 mb-4">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">{{ week.week_name }} &nbsp;|&nbsp; Budget: ₹{{ week.budget }} &nbsp;|&nbsp; Spent: ₹{{ week.spent }}</h5>
+                        <form action="/delete_week/{{ week.id }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this week?');">
+                            <button type="submit" class="btn btn-sm btn-danger">Delete Week</button>
+                        </form>
+                    </div>
+                    <div class="card-body">
+                        <!-- Over / Under Budget Indicator Report -->
+                        <div class="mb-3">
+                            {% if week.diff >= 0 %}
+                                <span class="badge bg-success fs-6 p-2">🎉 Under Budget by ₹{{ "%.2f"|format(week.diff) }} (Saved!)</span>
+                            {% else %}
+                                <span class="badge bg-danger fs-6 p-2">⚠️ Over Budget by ₹{{ "%.2f"|format(week.diff|abs) }}!</span>
+                            {% endif %}
+                        </div>
+
+                        <!-- Add Expense Form -->
+                        <form action="/add_expense/{{ week.id }}" method="POST" class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <input type="text" class="form-control form-control-sm" name="title" placeholder="Expense description (e.g. Groceries, Electricity)" required>
+                            </div>
+                            <div class="col-md-4">
+                                <input type="number" step="0.01" class="form-control form-control-sm" name="amount" placeholder="Amount (₹)" required>
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-sm btn-success w-100">Add Expense</button>
+                            </div>
+                        </form>
+
+                        <!-- Expenses Table -->
+                        {% if week.expenses %}
+                        <div class="table-responsive">
+                            <table class="table table-striped table-sm align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Expense Description</th>
+                                        <th>Amount</th>
+                                        <th class="text-end">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for exp in week.expenses %}
+                                    <tr>
+                                        <td>{{ exp.title }}</td>
+                                        <td>₹{{ "%.2f"|format(exp.amount) }}</td>
+                                        <td class="text-end">
+                                            <!-- Edit Button links to edit page -->
+                                            <a href="/edit_expense/{{ exp.id }}" class="btn btn-sm btn-outline-primary py-0 px-1 me-1">Edit</a>
+                                            <form action="/delete_expense/{{ exp.id }}" method="POST" class="d-inline">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1">Delete</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <p class="text-muted small mb-0">No expenses recorded for this week yet.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="col-12 text-center text-muted py-4">
+                <p>No weeks added yet. Create your first week above to start tracking!</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <script>
+        fetch('/api/chart_data')
+            .then(response => response.json())
+            .then(data => {
+                const ctx = document.getElementById('budgetChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.labels,
+                        datasets: [
+                            {
+                                label: 'Budget Set (₹)',
+                                data: data.budgets,
+                                backgroundColor: 'rgba(25, 135, 84, 0.7)',
+                                borderColor: 'rgba(25, 135, 84, 1)',
+                                borderWidth: 1
+                            },
+                            {
+                                label: 'Actual Spent (₹)',
+                                data: data.spent,
+                                backgroundColor: 'rgba(220, 53, 69, 0.7)',
+                                borderColor: 'rgba(220, 53, 69, 1)',
+                                borderWidth: 1
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            });
+    </script>
+</body>
+</html>
